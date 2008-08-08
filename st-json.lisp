@@ -228,12 +228,12 @@ Raises a json-type-error when the type is wrong."
     (:null (princ "null" stream))))
 
 (defmethod write-json-element ((element string) stream)
-  (princ #\' stream)
+  (princ #\" stream)
   (dotimes (i (length element))
     (princ 
      (case (char element i)
        (#\\ "\\\\")
-       (#\' "\\'")
+       (#\" "\\\"")
        (#\backspace "\\b")
        (#\newline "\\n")
        (#\return "\\r")
@@ -243,7 +243,7 @@ Raises a json-type-error when the type is wrong."
        (#\/ (if (and *script-tag-hack* (> i 0) (char= (char element (1- i)) #\<)) "\\/" #\/))
        (t (char element i)))
      stream))
-  (princ #\' stream))
+  (princ #\" stream))
 
 (defmethod write-json-element ((element integer) stream)
   (write element :stream stream))

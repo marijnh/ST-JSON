@@ -5,14 +5,14 @@
     body { max-width: 50em; font-family: georgia, times, serif; margin: 3em; }
     h1, h2 { font-weight: normal; }
     p.def { margin-top: 1.5em; font-family: courier; }
-    p.def span { color: #555555; font-weight: bold; font-family: tahoma, sans-serif; font-size: .8em; }
+    p.def span { color: #555555; font-weight: bold; font-family: tahoma, sans-serif; font-size: 80%; }
     p.desc { margin-left: 1em; }
     pre { margin-left: 1em; }
 
-    h1 { color: #297; }
-    h2 { color: #972; }
-    a:link { color: #729; }
-    a:visited { color: #638; }
+    h1 { color: #2B7; }
+    h2 { color: #B72; font-size: 130% }
+    a:link { color: #72B; }
+    a:visited { color: #548; }
   </style>
   <title>ST-JSON</title>
 </head>
@@ -32,7 +32,7 @@
   <h2>Download and installation</h2>
 
   <p>This library is available under a <a href="LICENSE">BSD-ish</a>
-  license. The library can be installed with <a
+  license. It can be installed with <a
   href="http://www.cliki.net/ASDF-Install">asdf-install</a>, or you
   can download the current <a
   href="http://marijn.haverbeke.nl/st-json/st-json.tgz">release</a>.
@@ -58,8 +58,8 @@
   stuff is all usually represented by <code>nil</code>, you will
   sometimes have to selectively transform your values before writing
   or after reading them. (The empty array is a truthy value in
-  JavaScript, so writing out <code>nil</code> as a boolean is bound to
-  get you into trouble.)</p>
+  JavaScript, so writing out <code>nil</code> for a boolean is bound
+  to get you into trouble.)</p>
 
   <p class="def" id="json-bool">
     <span>type</span> json-bool

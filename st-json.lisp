@@ -173,7 +173,7 @@ Raises a json-type-error when the type is wrong."
 (defun looks-like-a-number (string)
   (every (lambda (char)
            (or (digit-char-p char)
-               (member char '(#\e #\E #\. #\-))))
+               (member char '(#\e #\E #\. #\- #\+))))
          string))
 
 (defun read-json-atom (stream)
@@ -249,7 +249,7 @@ Raises a json-type-error when the type is wrong."
   (write element :stream stream))
 
 (defmethod write-json-element ((element real) stream)
-  (format stream "~f" element))
+  (format stream "~,,,,,,'eE" element))
 
 (defmethod write-json-element ((element hash-table) stream)
   (write-json-element

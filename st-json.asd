@@ -1,3 +1,3 @@
-(asdf:defsystem :agraph-browser
+(asdf:defsystem :st-json
   :depends-on ()
   :components ((:file "st-json")))

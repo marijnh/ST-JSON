@@ -4,7 +4,7 @@
            #:write-json #:write-json-to-string #:write-json-element
            #:as-json-bool #:from-json-bool
            #:json-bool #:json-null
-           #:jsmap #:getjsmap #:mapjsmap
+           #:jso #:getjso #:mapjso
            #:json-error #:json-type-error #:json-parse-error
            #:*script-tag-hack*))
 
@@ -28,8 +28,7 @@
 ;; tables are too heavyweight on some implementations.
 (defstruct jso alist)
 (defun jso (&rest fields)
-  "Create a JS object. Arguments should be alternating labels and
-values."
+  "Create a JS object. Arguments should be alternating labels and values."
   (make-jso :alist (loop :for (key val) :on fields :by #'cddr
                            :collect (cons key val))))
 

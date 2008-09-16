@@ -10,6 +10,10 @@
 
 (in-package :st-json)
 
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defparameter *optimize*
+    '(optimize (speed 3) (safety 0) (space 1) (debug 1) (compilation-speed 0))))
+
 ;; Boolean types. It is hard to see what is meant by NIL when encoding
 ;; a lisp value -- false or [] -- so :false and :true are used instead
 ;; of T and NIL.
@@ -67,6 +71,7 @@ gethash."
   (or (is-whitespace char) (member char '(#\) #\] #\} #\, #\:))))
 
 (defun skip-whitespace (stream)
+  (declare #.*optimize*)
   (loop :while (is-whitespace (peek-char nil stream nil))
         :do (read-char stream)))
 
@@ -96,6 +101,7 @@ Raises a json-type-error when the type is wrong."
         (raise 'json-type-error "JSON input '~A' is not of expected type ~A." source type))))
 
 (defun read-json-element (stream)
+  (declare #.*optimize*)
   (skip-whitespace stream)
   (case (peek-char nil stream nil :eof)
     (:eof (raise 'json-parse-error "Unexpected end of input."))
@@ -105,6 +111,7 @@ Raises a json-type-error when the type is wrong."
     (t (read-json-atom stream))))
 
 (defun read-json-string (stream)
+  (declare #.*optimize*)
   (labels ((interpret (char)
              (if (eql char #\\)
                  (let ((escaped (read-char stream)))
@@ -115,26 +122,30 @@ Raises a json-type-error when the type is wrong."
                  char))
            (read-unicode ()
              (code-char (loop :for pos :from 0 :below 4
-                              :for weight := #.(expt 16 3) :then (ash weight -4)
+                              :for weight :of-type fixnum := #.(expt 16 3) :then (ash weight -4)
                               :for digit := (digit-char-p (read-char stream) 16)
                               :do (unless digit (raise 'json-parse-error "Invalid unicode constant in string."))
                               :sum (* digit weight)))))
     (with-output-to-string (out)
       (handler-case
-          (loop :with quote := (read-char stream)
-                :for next := (read-char stream)
+          (loop :with quote :of-type character := (read-char stream)
+                :for next :of-type character := (read-char stream)
                 :until (eql next quote)
                 :do (write-char (interpret next) out))
         (end-of-file () (raise 'json-parse-error "Encountered end of input inside string constant."))))))
 
 (defun gather-comma-separated (stream end-char obj-name gather-func)
+  (declare #.*optimize*)
+  (declare (type character end-char))
+  (declare (type function gather-func))
   ;; Throw away opening char
   (read-char stream)
   (let ((finished nil))
     (loop
      (skip-whitespace stream)
-     (let ((next (peek-char nil stream nil :eof)))
-       (when (eql next :eof)
+     (let ((next (peek-char nil stream nil #\nul)))
+       (declare (type character next))
+       (when (eql next #\nul)
          (raise 'json-parse-error "Encountered end of input inside ~A." obj-name))
        (when (eql next end-char)
          (read-char stream)
@@ -148,6 +159,7 @@ Raises a json-type-error when the type is wrong."
          (setf finished t)))))
 
 (defun read-json-list (stream)
+  (declare #.*optimize*)
   (let ((accum ()))
     (gather-comma-separated
      stream #\] "list"
@@ -156,6 +168,7 @@ Raises a json-type-error when the type is wrong."
     (nreverse accum)))
 
 (defun read-json-object (stream)
+  (declare #.*optimize*)
   (let ((accum ()))
     (gather-comma-separated 
      stream #\} "object literal"
@@ -170,12 +183,15 @@ Raises a json-type-error when the type is wrong."
     (make-jso :alist (nreverse accum))))
 
 (defun looks-like-a-number (string)
-  (every (lambda (char)
-           (or (digit-char-p char)
-               (member char '(#\e #\E #\. #\- #\+))))
-         string))
+  (declare #.*optimize*)
+  (let ((string (coerce string 'simple-string)))
+    (every (lambda (char)
+             (or (digit-char-p char)
+                 (member char '(#\e #\E #\. #\- #\+))))
+           string)))
 
 (defun read-json-atom (stream)
+  (declare #.*optimize*)
   (let ((accum (make-array 0 :element-type 'character :fill-pointer 0 :adjustable t)))
     (loop
      (let ((next (peek-char nil stream nil :eof)))
@@ -190,7 +206,12 @@ Raises a json-type-error when the type is wrong."
             ((string= accum "true") :true)
             ((string= accum "null") :null)
             ((string= accum "undefined") :undefined)
-            ((and *reading-slot-name* (every (lambda (c) (or (alphanumericp c) (eql c #\_) (eql c #\$))) accum)) accum)
+            ((and *reading-slot-name*
+                  (every (lambda (c)
+                           (declare (type character c))
+                           (or (alphanumericp c) (eql c #\_) (eql c #\$)))
+                         accum))
+             accum)
             (t (raise 'json-parse-error "Unrecognized value in JSON data: ~A" accum))))))
 
 ;; Writer
@@ -219,6 +240,7 @@ Raises a json-type-error when the type is wrong."
   You can specialise this for your own types."))
 
 (defmethod write-json-element ((element symbol) stream)
+  (declare #.*optimize*)
   (ecase element
     ((nil) (princ "[]" stream))
     ((t :true) (princ "true" stream))
@@ -227,22 +249,22 @@ Raises a json-type-error when the type is wrong."
     (:null (princ "null" stream))))
 
 (defmethod write-json-element ((element string) stream)
-  (princ #\" stream)
-  (dotimes (i (length element))
-    (princ 
-     (case (char element i)
-       (#\\ "\\\\")
-       (#\" "\\\"")
-       (#\backspace "\\b")
-       (#\newline "\\n")
-       (#\return "\\r")
-       (#\page "\\f")
-       (#\tab "\\t")
-       ;; Prevent </script> by escaping every #\/ that follows a #\<
-       (#\/ (if (and *script-tag-hack* (> i 0) (char= (char element (1- i)) #\<)) "\\/" #\/))
-       (t (char element i)))
-     stream))
-  (princ #\" stream))
+  (declare #.*optimize*)
+  (let ((element (coerce element 'simple-string)))
+    (princ #\" stream)
+    (loop :for prev := nil :then ch
+          :for ch :across element
+          :do (princ
+               (case ch
+                 (#\\ "\\\\") (#\" "\\\"")
+                 (#\backspace "\\b") (#\newline "\\n")
+                 (#\return "\\r") (#\page "\\f")
+                 (#\tab "\\t")
+                 ;; Prevent </script> by escaping every #\/ that follows a #\<
+                 (#\/ (if (and *script-tag-hack* (eql prev #\<)) "\\/" #\/))
+                 (t ch))
+               stream))
+    (princ #\" stream)))
 
 (defmethod write-json-element ((element integer) stream)
   (write element :stream stream))
@@ -251,12 +273,14 @@ Raises a json-type-error when the type is wrong."
   (format stream "~,,,,,,'eE" element))
 
 (defmethod write-json-element ((element hash-table) stream)
+  (declare #.*optimize*)
   (write-json-element
    (make-jso :alist (loop :for key :being :the :hash-key :using (hash-value val) :of element
                             :collect (cons key val)))
    stream))
 
 (defmethod write-json-element ((element jso) stream)
+  (declare #.*optimize*)
   (princ #\{ stream)
   (loop :for (key . val) :in (jso-alist element)
         :for first := t :then nil
@@ -267,6 +291,7 @@ Raises a json-type-error when the type is wrong."
   (princ #\} stream))
 
 (defmethod write-json-element ((element list) stream)
+  (declare #.*optimize*)
   (princ #\[ stream)
   (let ((first t))
     (dolist (part element)

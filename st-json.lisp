@@ -242,16 +242,16 @@ Raises a json-type-error when the type is wrong."
 (defmethod write-json-element ((element symbol) stream)
   (declare #.*optimize*)
   (ecase element
-    ((nil) (princ "[]" stream))
-    ((t :true) (princ "true" stream))
-    (:false (princ "false" stream))
-    (:undefined (princ "undefined" stream))
-    (:null (princ "null" stream))))
+    ((nil) (write-string "[]" stream))
+    ((t :true) (write-string "true" stream))
+    (:false (write-string "false" stream))
+    (:undefined (write-string "undefined" stream))
+    (:null (write-string "null" stream))))
 
 (defmethod write-json-element ((element string) stream)
   (declare #.*optimize*)
   (let ((element (coerce element 'simple-string)))
-    (princ #\" stream)
+    (write-char #\" stream)
     (loop :for prev := nil :then ch
           :for ch :across element
           :do (princ
@@ -264,7 +264,7 @@ Raises a json-type-error when the type is wrong."
                  (#\/ (if (and *script-tag-hack* (eql prev #\<)) "\\/" #\/))
                  (t ch))
                stream))
-    (princ #\" stream)))
+    (write-char #\" stream)))
 
 (defmethod write-json-element ((element integer) stream)
   (write element :stream stream))
@@ -281,22 +281,22 @@ Raises a json-type-error when the type is wrong."
 
 (defmethod write-json-element ((element jso) stream)
   (declare #.*optimize*)
-  (princ #\{ stream)
+  (write-char #\{ stream)
   (loop :for (key . val) :in (jso-alist element)
         :for first := t :then nil
-        :unless first :do (princ ", " stream)
+        :unless first :do (write-char #\, stream)
         :do (write-json-element key stream)
-        :do (princ ": " stream)
+        :do (write-char #\: stream)
         :do (write-json-element val stream))
-  (princ #\} stream))
+  (write-char #\} stream))
 
 (defmethod write-json-element ((element list) stream)
   (declare #.*optimize*)
-  (princ #\[ stream)
+  (write-char #\[ stream)
   (let ((first t))
     (dolist (part element)
      (if first
          (setf first nil)
-         (princ ", " stream))
+         (write-char #\, stream))
      (write-json-element part stream)))
-  (princ #\] stream))
+  (write-char #\] stream))

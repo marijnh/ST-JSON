@@ -1,6 +1,6 @@
 (defpackage :st-json
   (:use :common-lisp)
-  (:export #:read-json #:read-json-as-type
+  (:export #:read-json #:read-json-as-type #:read-json-from-string
            #:write-json #:write-json-to-string #:write-json-element
            #:as-json-bool #:from-json-bool
            #:json-bool #:json-null
@@ -93,6 +93,12 @@ gethash."
 (defmethod read-json ((in string) &optional (junk-allowed-p nil))
   (with-input-from-string (stream in)
     (read-json stream junk-allowed-p)))
+
+(defun read-json-from-string (string &key (start 0) end junk-allowed-p)
+  (let (index value)
+    (with-input-from-string (stream string :index index :start start :end end)
+      (setf value (read-json stream junk-allowed-p)))
+    (values value index)))
 
 (defun read-json-as-type (source type)
   "Read a JSON value and assert the result to be of a given type.

@@ -6,6 +6,7 @@
            #:json-bool #:json-null
            #:jso #:getjso #:mapjso
            #:json-error #:json-type-error #:json-parse-error
+           #:json-eof-error
            #:*script-tag-hack*))
 
 (in-package :st-json)
@@ -57,6 +58,7 @@ gethash."
 
 (define-condition json-error (simple-error) ())
 (define-condition json-parse-error (json-error) ())
+(define-condition json-eof-error (json-parse-error) ())
 (define-condition json-write-error (json-error) ())
 (define-condition json-type-error (json-error) ())
 (defun raise (type format &rest args)
@@ -104,7 +106,7 @@ Raises a json-type-error when the type is wrong."
   (declare #.*optimize*)
   (skip-whitespace stream)
   (case (peek-char nil stream nil :eof)
-    (:eof (raise 'json-parse-error "Unexpected end of input."))
+    (:eof (raise 'json-eof-error "Unexpected end of input."))
     ((#\" #\') (read-json-string stream))
     (#\[ (read-json-list stream))
     (#\{ (read-json-object stream))
@@ -132,7 +134,7 @@ Raises a json-type-error when the type is wrong."
                 :for next :of-type character := (read-char stream)
                 :until (eql next quote)
                 :do (write-char (interpret next) out))
-        (end-of-file () (raise 'json-parse-error "Encountered end of input inside string constant."))))))
+        (end-of-file () (raise 'json-eof-error "Encountered end of input inside string constant."))))))
 
 (defun gather-comma-separated (stream end-char obj-name gather-func)
   (declare #.*optimize*)
@@ -146,7 +148,7 @@ Raises a json-type-error when the type is wrong."
      (let ((next (peek-char nil stream nil #\nul)))
        (declare (type character next))
        (when (eql next #\nul)
-         (raise 'json-parse-error "Encountered end of input inside ~A." obj-name))
+         (raise 'json-eof-error "Encountered end of input inside ~A." obj-name))
        (when (eql next end-char)
          (read-char stream)
          (return))

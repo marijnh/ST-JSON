@@ -257,21 +257,28 @@ Raises a json-type-error when the type is wrong."
     (:null (write-string "null" stream))))
 
 (defmethod write-json-element ((element string) stream)
-  (declare #.*optimize*)
+  (declare #.*optimize* (stream stream))
   (let ((element (coerce element 'simple-string)))
     (write-char #\" stream)
-    (loop :for prev := nil :then ch
-          :for ch :across element
-          :do (princ
-               (case ch
-                 (#\\ "\\\\") (#\" "\\\"")
-                 (#\backspace "\\b") (#\newline "\\n")
-                 (#\return "\\r") (#\page "\\f")
-                 (#\tab "\\t")
-                 ;; Prevent </script> by escaping every #\/ that follows a #\<
-                 (#\/ (if (and *script-tag-hack* (eql prev #\<)) "\\/" #\/))
-                 (t ch))
-               stream))
+    (if *script-tag-hack*
+        (loop :for prev := nil :then ch
+              :for ch :of-type character :across element :do
+           (let ((code (char-code ch)))
+             (declare (fixnum code))
+             (cond ((< code 14) (princ (case ch (#\backspace "\\b") (#\newline "\\n") (#\return "\\r")
+                                             (#\page "\\f") (#\tab "\\t") (t ch)) stream))
+                   ((eq code 92) (write-string "\\\\" stream))
+                   ((eq code 34) (write-string "\\\"" stream))
+                   ((eq code 47) (when (eql prev #\<) (write-char #\\ stream)) (write-char ch stream))
+                   (t (write-char ch stream)))))
+        (loop :for ch :of-type character :across element :do
+           (let ((code (char-code ch)))
+             (declare (fixnum code))
+             (cond ((< code 14) (princ (case ch (#\backspace "\\b") (#\newline "\\n") (#\return "\\r")
+                                             (#\page "\\f") (#\tab "\\t") (t ch)) stream))
+                   ((eq code 92) (write-string "\\\\" stream))
+                   ((eq code 34) (write-string "\\\"" stream))
+                   (t (write-char ch stream))))))
     (write-char #\" stream)))
 
 (defmethod write-json-element ((element integer) stream)

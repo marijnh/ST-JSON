@@ -213,7 +213,7 @@ Raises a json-type-error when the type is wrong."
             ((string= accum "false") :false)
             ((string= accum "true") :true)
             ((string= accum "null") :null)
-            ((string= accum "undefined") :undefined)
+            ((string= accum "undefined") :null)
             ((and *reading-slot-name*
                   (every (lambda (c)
                            (declare (type character c))
@@ -253,8 +253,7 @@ Raises a json-type-error when the type is wrong."
     ((nil) (write-string "[]" stream))
     ((t :true) (write-string "true" stream))
     (:false (write-string "false" stream))
-    (:undefined (write-string "undefined" stream))
-    (:null (write-string "null" stream))))
+    ((:null :undefined) (write-string "null" stream))))
 
 (defmethod write-json-element ((element string) stream)
   (declare #.*optimize* (stream stream))

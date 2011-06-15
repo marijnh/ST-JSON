@@ -289,8 +289,8 @@ Raises a json-type-error when the type is wrong."
 (defmethod write-json-element ((element hash-table) stream)
   (declare #.*optimize*)
   (write-json-element
-   (make-jso :alist (loop :for key :being :the :hash-key :of element :using (hash-value val)
-                            :collect (cons key val)))
+   (make-jso :alist (loop :for key :being :the :hash-keys :of element :using (hash-value val)
+                          :collect (cons key val)))
    stream))
 
 (defmethod write-json-element ((element jso) stream)

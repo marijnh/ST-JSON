@@ -112,13 +112,13 @@
   second value indicating whether the value was found (like
   <code>gethash</code>). Can be used with <code>setf</code>.</p>
 
-  <p class="def" id="get-nested-jso">
-    <span>function</span> get-nested-jso (keys jso)
+  <p class="def" id="getjso*">
+    <span>function</span> getjso* (keys jso)
     <br/>&#8594; value
   </p>
 
-  <p class="desc">Takes a key of the form "a.b.c.etc" and generates
-  a series of getjso calls that descend into the object as expected.
+  <p class="desc">Takes a key of the form "a.b.c", generates a series
+  of getjso calls that descend into the object and returns 'c'.
 
   <p class="def" id="mapjso">
     <span>function</span> mapjso (function jso)

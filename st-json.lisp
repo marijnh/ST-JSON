@@ -1,11 +1,10 @@
 (defpackage :st-json
   (:use :common-lisp)
-  (:import-from :split-sequence #:split-sequence)
   (:export #:read-json #:read-json-as-type #:read-json-from-string
            #:write-json #:write-json-to-string #:write-json-element
            #:as-json-bool #:from-json-bool
            #:json-bool #:json-null
-           #:jso #:getjso #:mapjso
+           #:jso #:getjso #:getjso* #:mapjso
            #:json-error #:json-type-error #:json-parse-error
            #:json-eof-error
            #:*script-tag-hack*))
@@ -55,14 +54,12 @@ gethash."
   (loop :for (key . val) :in (jso-alist map)
         :do (funcall func key val)))
 
-(defmacro get-nested-jso (keys jso)
-  (let ((keys (etypecase keys
-                (list keys)
-                (string (split-sequence #\. keys)))))
-    (if (< (length keys) 2)
-        `(st-json:getjso ,(first keys) ,jso)
-        `(st-json:getjso ,(first (last keys))
-                         (get-nested-jso ,(butlast keys) ,jso)))))
+(defmacro getjso* (keys jso)
+  (let ((last (position #\. keys :from-end t)))
+    (if last
+        `(getjso ,(subseq keys (1+ last))
+                 (getjso* ,(subseq keys 0 last) ,jso))
+        `(getjso ,keys ,jso))))
 
 ;; Reader
 

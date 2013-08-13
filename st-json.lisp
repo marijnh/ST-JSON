@@ -7,6 +7,7 @@
            #:jso #:getjso #:getjso* #:mapjso
            #:json-error #:json-type-error #:json-parse-error
            #:json-eof-error
+           #:*decode-objects-as*
            #:*script-tag-hack*))
 
 (in-package :st-json)
@@ -62,6 +63,11 @@ gethash."
         `(getjso ,keys ,jso))))
 
 ;; Reader
+
+(defparameter *decode-objects-as* :jso
+  "Valid values: :jso :hashtable
+  Controls how js objects should be decoded. :jso means decode to internal struct which
+  can be processed by getjso, mapjso etc. :hashtable means decode as hash tables.")
 
 (define-condition json-error (simple-error) ())
 (define-condition json-parse-error (json-error) ())
@@ -184,18 +190,33 @@ Raises a json-type-error when the type is wrong."
 
 (defun read-json-object (stream)
   (declare #.*optimize*)
-  (let ((accum ()))
-    (gather-comma-separated 
-     stream #\} "object literal"
-     (lambda ()
-       (let ((slot-name (let ((*reading-slot-name* t)) (read-json-element stream))))
-         (unless (or (typep slot-name 'string) (typep slot-name 'number))
-           (raise 'json-parse-error "Invalid slot name in object literal: ~A" slot-name))
-         (skip-whitespace stream)
-         (when (not (eql (read-char stream nil) #\:))
-           (raise 'json-parse-error "Colon expected after '~a'." slot-name))
-         (push (cons slot-name (read-json-element stream)) accum))))
-    (make-jso :alist (nreverse accum))))
+  (ecase *decode-objects-as*
+    (:jso
+     (let ((accum ()))
+       (gather-comma-separated
+        stream #\} "object literal"
+        (lambda ()
+          (let ((slot-name (let ((*reading-slot-name* t)) (read-json-element stream))))
+            (unless (or (typep slot-name 'string) (typep slot-name 'number))
+              (raise 'json-parse-error "Invalid slot name in object literal: ~A" slot-name))
+            (skip-whitespace stream)
+            (when (not (eql (read-char stream nil) #\:))
+              (raise 'json-parse-error "Colon expected after '~a'." slot-name))
+            (push (cons slot-name (read-json-element stream)) accum))))
+       (make-jso :alist (nreverse accum))))
+     (:hashtable
+      (let ((accum (make-hash-table)))
+        (gather-comma-separated
+         stream #\} "object literal"
+         (lambda ()
+           (let ((slot-name (let ((*reading-slot-name* t)) (read-json-element stream))))
+             (unless (or (typep slot-name 'string) (typep slot-name 'number))
+               (raise 'json-parse-error "Invalid slot name in object literal: ~A" slot-name))
+             (skip-whitespace stream)
+             (when (not (eql (read-char stream nil) #\:))
+               (raise 'json-parse-error "Colon expected after '~a'." slot-name))
+             (setf (gethash slot-name accum) (read-json-element stream)))))
+        accum))))
 
 (defun looks-like-a-number (string)
   (declare #.*optimize*)

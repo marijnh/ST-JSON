@@ -292,9 +292,9 @@ Raises a json-type-error when the type is wrong."
            :for ch :of-type character :across element :do
            (let ((code (char-code ch)))
              (declare (fixnum code))
-             (cond ((eq code 47)                         (when (eql prev #\<) (write-char #\\ stream)) (write-char ch stream))
-                   ((eq code 92)                         (write-string "\\\\" stream))
-                   ((eq code 34)                         (write-string "\\\"" stream))
+             (cond ((eq code #.(char-code #\/))          (when (eql prev #\<) (write-char #\\ stream)) (write-char ch stream))
+                   ((eq code #.(char-code #\\))          (write-string "\\\\" stream))
+                   ((eq code #.(char-code #\"))          (write-string "\\\"" stream))
                    ((eq code #.(char-code #\backspace))  (write-string "\\b" stream))
                    ((eq code #.(char-code #\newline))    (write-string "\\n" stream))
                    ((eq code #.(char-code #\return))     (write-string "\\r" stream))
@@ -306,8 +306,8 @@ Raises a json-type-error when the type is wrong."
         (loop :for ch :of-type character :across element :do
            (let ((code (char-code ch)))
              (declare (fixnum code))
-             (cond ((eq code 92)                        (write-string "\\\\" stream))
-                   ((eq code 34)                        (write-string "\\\"" stream))
+             (cond ((eq code #.(char-code #\\))         (write-string "\\\\" stream))
+                   ((eq code #.(char-code #\"))         (write-string "\\\"" stream))
                    ((eq code #.(char-code #\backspace)) (write-string "\\b" stream))
                    ((eq code #.(char-code #\newline))   (write-string "\\n" stream))
                    ((eq code #.(char-code #\return))    (write-string "\\r" stream))

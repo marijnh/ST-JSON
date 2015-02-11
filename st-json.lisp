@@ -274,33 +274,33 @@ Raises a json-type-error when the type is wrong."
              (if (or (<= 0 code #x1f)
                      (<= #x7f code #x9f))
                  (case code
-                   (#.(char-code #\/))        (when (eql prev #\<) (write-char #\\ stream)) (write-char ch stream)
-                   (#.(char-code #\\)         (write-string "\\\\" stream))
-                   (#.(char-code #\")         (write-string "\\\"" stream))
                    (#.(char-code #\backspace) (write-string "\\b" stream))
                    (#.(char-code #\newline)   (write-string "\\n" stream))
                    (#.(char-code #\return)    (write-string "\\r" stream))
                    (#.(char-code #\page)      (write-string "\\f" stream))
                    (#.(char-code #\tab)       (write-string "\\t" stream))
                    (t                         (format stream "\\u~4,'0x" code)))
-                 ;; ELSE: Normal character, no need to encode
-                 (write-char ch stream))))
+                 (case code
+                   (#.(char-code #\/)) (when (eql prev #\<) (write-char #\\ stream)) (write-char ch stream)
+                   (#.(char-code #\\)  (write-string "\\\\" stream))
+                   (#.(char-code #\")  (write-string "\\\"" stream))
+                   (t                  (write-char ch stream))))))
         (loop :for ch :of-type character :across element :do
            (let ((code (char-code ch)))
              (declare (fixnum code))
              (if (or (<= 0 code #x1f)
                      (<= #x7f code #x9f))
                  (case code
-                   (#.(char-code #\\)         (write-string "\\\\" stream))
-                   (#.(char-code #\")         (write-string "\\\"" stream))
                    (#.(char-code #\backspace) (write-string "\\b" stream))
                    (#.(char-code #\newline)   (write-string "\\n" stream))
                    (#.(char-code #\return)    (write-string "\\r" stream))
                    (#.(char-code #\page)      (write-string "\\f" stream))
                    (#.(char-code #\tab)       (write-string "\\t" stream))
                    (t                         (format stream "\\u~4,'0x" code)))
-                 ;; ELSE: Normal character, no need to encode
-                 (write-char ch stream)))))
+                 (case code
+                   (#.(char-code #\\) (write-string "\\\\" stream))
+                   (#.(char-code #\") (write-string "\\\"" stream))
+                   (t                 (write-char ch stream)))))))
     (write-char #\" stream)))
 
 (defmethod write-json-element ((element integer) stream)

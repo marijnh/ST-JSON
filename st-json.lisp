@@ -204,6 +204,19 @@ Raises a json-type-error when the type is wrong."
               (raise 'json-parse-error "Colon expected after '~a'." slot-name))
             (push (cons slot-name (read-json-element stream)) accum))))
        (make-jso :alist (nreverse accum))))
+     (:alist
+      (let ((accum ()))
+       (gather-comma-separated
+        stream #\} "object literal"
+        (lambda ()
+          (let ((slot-name (let ((*reading-slot-name* t)) (read-json-element stream))))
+            (unless (or (typep slot-name 'string) (typep slot-name 'number))
+              (raise 'json-parse-error "Invalid slot name in object literal: ~A" slot-name))
+            (skip-whitespace stream)
+            (when (not (eql (read-char stream nil) #\:))
+              (raise 'json-parse-error "Colon expected after '~a'." slot-name))
+            (push (cons slot-name (read-json-element stream)) accum))))
+       (nreverse accum)))
      (:hashtable
       (let ((accum (make-hash-table)))
         (gather-comma-separated

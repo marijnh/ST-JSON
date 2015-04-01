@@ -191,7 +191,7 @@ Raises a json-type-error when the type is wrong."
 (defun read-json-object (stream)
   (declare #.*optimize*)
   (ecase *decode-objects-as*
-    (:jso
+    ((:jso :alist)
      (let ((accum ()))
        (gather-comma-separated
         stream #\} "object literal"
@@ -203,7 +203,9 @@ Raises a json-type-error when the type is wrong."
             (when (not (eql (read-char stream nil) #\:))
               (raise 'json-parse-error "Colon expected after '~a'." slot-name))
             (push (cons slot-name (read-json-element stream)) accum))))
-       (make-jso :alist (nreverse accum))))
+       (if (eq *decode-objects-as* :jso)
+           (make-jso :alist (nreverse accum))
+           (nreverse accum))))
      (:hashtable
       (let ((accum (make-hash-table)))
         (gather-comma-separated

@@ -55,12 +55,12 @@ gethash."
   (loop :for (key . val) :in (jso-alist map)
         :do (funcall func key val)))
 
-(defmacro getjso* (keys jso)
+(defun getjso* (keys jso)
   (let ((last (position #\. keys :from-end t)))
     (if last
-        `(getjso ,(subseq keys (1+ last))
-                 (getjso* ,(subseq keys 0 last) ,jso))
-        `(getjso ,keys ,jso))))
+        (getjso (subseq keys (1+ last))
+                (getjso* (subseq keys 0 last) jso))
+        (getjso keys jso))))
 
 ;; Reader
 

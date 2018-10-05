@@ -142,11 +142,35 @@ Raises a json-type-error when the type is wrong."
                      (#\t #\tab) (#\f #\page) (t escaped)))
                  char))
            (read-unicode ()
-             (code-char (loop :for pos :from 0 :below 4
-                              :for weight :of-type fixnum := #.(expt 16 3) :then (ash weight -4)
-                              :for digit := (digit-char-p (read-char stream) 16)
-                              :do (unless digit (raise 'json-parse-error "Invalid unicode constant in string."))
-                              :sum (* digit weight)))))
+             ;; refer to ECMA-404, strings.
+             (flet ((read-code-point ()
+                      (the fixnum
+                           (loop :for pos :from 0 :below 4
+                                 :for weight :of-type fixnum := #.(expt 16 3) :then (ash weight -4)
+                                 :for digit := (digit-char-p (read-char stream) 16)
+                                 :do (unless digit (raise 'json-parse-error "Invalid unicode constant in string."))
+                                 :sum (* digit weight))))
+                    (expect-char (char)
+                      (let ((c (read-char stream)))
+                        (assert (char= char c) (c)
+                                "Expecting ~c, found ~c instead." char c))))
+               (let ((code-point (read-code-point)))
+                 (code-char
+                  (if (<= #xD800 code-point #xDBFF)
+                      (let ((utf-16-high-surrogate-pair code-point))
+                        (expect-char #\\)
+                        (expect-char #\u)
+                        (let ((utf-16-low-surrogate-pair (read-code-point)))
+                          (declare (type fixnum utf-16-low-surrogate-pair))
+                          (assert (<= #xDC00 utf-16-low-surrogate-pair #xDFFF)
+                                  (utf-16-low-surrogate-pair)
+                                  "Unexpected UTF-16 surrogate pair: ~a and ~a."
+                                  utf-16-high-surrogate-pair
+                                  utf-16-low-surrogate-pair)
+                          (+ #x010000
+                             (ash (- utf-16-high-surrogate-pair #xD800) 10)
+                             (- utf-16-low-surrogate-pair #xDC00))))
+                      code-point))))))
     (with-output-to-string (out)
       (handler-case
           (loop :with quote :of-type character := (read-char stream)
@@ -154,6 +178,8 @@ Raises a json-type-error when the type is wrong."
                 :until (eql next quote)
                 :do (write-char (interpret next) out))
         (end-of-file () (raise 'json-eof-error "Encountered end of input inside string constant."))))))
+
+;;; (st-json:read-json-from-string "\"In JSON, 𝄞 can be encoded/escaped like this: \\uD834\\uDD1E.\"")
 
 (defun gather-comma-separated (stream end-char obj-name gather-func)
   (declare #.*optimize*)

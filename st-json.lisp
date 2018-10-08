@@ -8,7 +8,8 @@
            #:json-error #:json-type-error #:json-parse-error
            #:json-eof-error
            #:*decode-objects-as*
-           #:*script-tag-hack*))
+           #:*script-tag-hack*
+           #:*output-literal-unicode*))
 
 (in-package :st-json)
 
@@ -285,6 +286,13 @@ Raises a json-type-error when the type is wrong."
   document. It prevents '</script>' from occurring in strings by
   escaping any slash following a '<' character.")
 
+(defparameter *output-literal-unicode* nil
+  "Bind this to T in order to reduce the use of \uXXXX Unicode escapes,
+  by emitting literal characters (encoded in UTF-8). This may help
+  reduce the parsing effort for any recipients of the JSON output, if
+  they can already read UTF-8, or else, they'll need to implement
+  complex unicode (eg UTF-16 surrogate pairs) escape parsers.")
+
 (defun write-json-to-string (element)
   "Write a value's JSON representation to a string."
   (with-output-to-string (out)
@@ -334,8 +342,26 @@ Raises a json-type-error when the type is wrong."
                                    (write-char ch stream))
                (#.(char-code #\\)  (write-string "\\\\" stream))
                (#.(char-code #\")  (write-string "\\\"" stream))
-               (t                  (write-char ch stream))))))
+               (t                  (cond ((< #x1F code #x7F)
+                                          (write-char ch stream))
+                                         ((and (< #x9F code #x10000)
+                                               (not *output-literal-unicode*))
+                                          (format stream "\\u~4,'0x" code))
+                                         ((and (< #x10000 code #x1FFFF)
+                                               (not *output-literal-unicode*))
+                                          (let ((c (- code #x10000)))
+                                            (format stream "\\u~4,'0x\\u~4,'0x"
+                                                    (logior #xD800 (ash c -10))
+                                                    (logior #xDC00 (logand c #x3FF)))))
+                                         (t
+                                          (write-char ch stream))))))))
     (write-char #\" stream)))
+
+#+nil
+(let ((st-json:*script-tag-hack* t))
+  (st-json:write-json-to-string "Test 𝄞 ⇓ 	<tag>
+</tag>"))
+;; ==> "\"Test \\uD834\\uDD1E \\u21D3 \\t<tag>\\n<\\/tag>\""
 
 (defmethod write-json-element ((element integer) stream)
   (write element :stream stream))

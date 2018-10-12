@@ -8,7 +8,8 @@
            #:json-error #:json-type-error #:json-parse-error
            #:json-eof-error
            #:*decode-objects-as*
-           #:*script-tag-hack*))
+           #:*script-tag-hack*
+           #:*output-literal-unicode*))
 
 (in-package :st-json)
 
@@ -142,11 +143,35 @@ Raises a json-type-error when the type is wrong."
                      (#\t #\tab) (#\f #\page) (t escaped)))
                  char))
            (read-unicode ()
-             (code-char (loop :for pos :from 0 :below 4
-                              :for weight :of-type fixnum := #.(expt 16 3) :then (ash weight -4)
-                              :for digit := (digit-char-p (read-char stream) 16)
-                              :do (unless digit (raise 'json-parse-error "Invalid unicode constant in string."))
-                              :sum (* digit weight)))))
+             ;; refer to ECMA-404, strings.
+             (flet ((read-code-point ()
+                      (the fixnum
+                           (loop :for pos :from 0 :below 4
+                                 :for weight :of-type fixnum := #.(expt 16 3) :then (ash weight -4)
+                                 :for digit := (digit-char-p (read-char stream) 16)
+                                 :do (unless digit (raise 'json-parse-error "Invalid unicode constant in string."))
+                                 :sum (* digit weight))))
+                    (expect-char (char)
+                      (let ((c (read-char stream)))
+                        (assert (char= char c) (c)
+                                "Expecting ~c, found ~c instead." char c))))
+               (let ((code-point (read-code-point)))
+                 (code-char
+                  (if (<= #xD800 code-point #xDBFF)
+                      (let ((utf-16-high-surrogate-pair code-point))
+                        (expect-char #\\)
+                        (expect-char #\u)
+                        (let ((utf-16-low-surrogate-pair (read-code-point)))
+                          (declare (type fixnum utf-16-low-surrogate-pair))
+                          (assert (<= #xDC00 utf-16-low-surrogate-pair #xDFFF)
+                                  (utf-16-low-surrogate-pair)
+                                  "Unexpected UTF-16 surrogate pair: ~a and ~a."
+                                  utf-16-high-surrogate-pair
+                                  utf-16-low-surrogate-pair)
+                          (+ #x010000
+                             (ash (- utf-16-high-surrogate-pair #xD800) 10)
+                             (- utf-16-low-surrogate-pair #xDC00))))
+                      code-point))))))
     (with-output-to-string (out)
       (handler-case
           (loop :with quote :of-type character := (read-char stream)
@@ -154,6 +179,8 @@ Raises a json-type-error when the type is wrong."
                 :until (eql next quote)
                 :do (write-char (interpret next) out))
         (end-of-file () (raise 'json-eof-error "Encountered end of input inside string constant."))))))
+
+;;; (st-json:read-json-from-string "\"In JSON, 𝄞 can be encoded/escaped like this: \\uD834\\uDD1E.\"")
 
 (defun gather-comma-separated (stream end-char obj-name gather-func)
   (declare #.*optimize*)
@@ -259,6 +286,13 @@ Raises a json-type-error when the type is wrong."
   document. It prevents '</script>' from occurring in strings by
   escaping any slash following a '<' character.")
 
+(defparameter *output-literal-unicode* nil
+  "Bind this to T in order to reduce the use of \uXXXX Unicode escapes,
+  by emitting literal characters (encoded in UTF-8). This may help
+  reduce the parsing effort for any recipients of the JSON output, if
+  they can already read UTF-8, or else, they'll need to implement
+  complex unicode (eg UTF-16 surrogate pairs) escape parsers.")
+
 (defun write-json-to-string (element)
   "Write a value's JSON representation to a string."
   (with-output-to-string (out)
@@ -289,42 +323,45 @@ Raises a json-type-error when the type is wrong."
   (declare #.*optimize* (stream stream))
   (let ((element (coerce element 'simple-string)))
     (write-char #\" stream)
-    (if *script-tag-hack*
-        (loop :for prev := nil :then ch
-           :for ch :of-type character :across element :do
-           (let ((code (char-code ch)))
-             (declare (fixnum code))
-             (if (or (<= 0 code #x1f)
-                     (<= #x7f code #x9f))
-                 (case code
-                   (#.(char-code #\backspace) (write-string "\\b" stream))
-                   (#.(char-code #\newline)   (write-string "\\n" stream))
-                   (#.(char-code #\return)    (write-string "\\r" stream))
-                   (#.(char-code #\page)      (write-string "\\f" stream))
-                   (#.(char-code #\tab)       (write-string "\\t" stream))
-                   (t                         (format stream "\\u~4,'0x" code)))
-                 (case code
-                   (#.(char-code #\/)) (when (eql prev #\<) (write-char #\\ stream)) (write-char ch stream)
-                   (#.(char-code #\\)  (write-string "\\\\" stream))
-                   (#.(char-code #\")  (write-string "\\\"" stream))
-                   (t                  (write-char ch stream))))))
-        (loop :for ch :of-type character :across element :do
-           (let ((code (char-code ch)))
-             (declare (fixnum code))
-             (if (or (<= 0 code #x1f)
-                     (<= #x7f code #x9f))
-                 (case code
-                   (#.(char-code #\backspace) (write-string "\\b" stream))
-                   (#.(char-code #\newline)   (write-string "\\n" stream))
-                   (#.(char-code #\return)    (write-string "\\r" stream))
-                   (#.(char-code #\page)      (write-string "\\f" stream))
-                   (#.(char-code #\tab)       (write-string "\\t" stream))
-                   (t                         (format stream "\\u~4,'0x" code)))
-                 (case code
-                   (#.(char-code #\\) (write-string "\\\\" stream))
-                   (#.(char-code #\") (write-string "\\\"" stream))
-                   (t                 (write-char ch stream)))))))
+    (loop :for prev := nil :then ch
+       :for ch :of-type character :across element :do
+       (let ((code (char-code ch)))
+         (declare (fixnum code))
+         (if (or (<= 0 code #x1f)
+                 (<= #x7f code #x9f))
+             (case code
+               (#.(char-code #\backspace) (write-string "\\b" stream))
+               (#.(char-code #\newline)   (write-string "\\n" stream))
+               (#.(char-code #\return)    (write-string "\\r" stream))
+               (#.(char-code #\page)      (write-string "\\f" stream))
+               (#.(char-code #\tab)       (write-string "\\t" stream))
+               (t                         (format stream "\\u~4,'0x" code)))
+             (case code
+               (#.(char-code #\/)  (when (and (eql prev #\<) *script-tag-hack*)
+                                     (write-char #\\ stream))
+                                   (write-char ch stream))
+               (#.(char-code #\\)  (write-string "\\\\" stream))
+               (#.(char-code #\")  (write-string "\\\"" stream))
+               (t                  (cond ((< #x1F code #x7F)
+                                          (write-char ch stream))
+                                         ((and (< #x9F code #x10000)
+                                               (not *output-literal-unicode*))
+                                          (format stream "\\u~4,'0x" code))
+                                         ((and (< #x10000 code #x1FFFF)
+                                               (not *output-literal-unicode*))
+                                          (let ((c (- code #x10000)))
+                                            (format stream "\\u~4,'0x\\u~4,'0x"
+                                                    (logior #xD800 (ash c -10))
+                                                    (logior #xDC00 (logand c #x3FF)))))
+                                         (t
+                                          (write-char ch stream))))))))
     (write-char #\" stream)))
+
+#+nil
+(let ((st-json:*script-tag-hack* t))
+  (st-json:write-json-to-string "Test 𝄞 ⇓ 	<tag>
+</tag>"))
+;; ==> "\"Test \\uD834\\uDD1E \\u21D3 \\t<tag>\\n<\\/tag>\""
 
 (defmethod write-json-element ((element integer) stream)
   (write element :stream stream))

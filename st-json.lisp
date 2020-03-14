@@ -8,6 +8,7 @@
            #:json-error #:json-type-error #:json-parse-error
            #:json-eof-error
            #:*decode-objects-as*
+           #:*allow-comments*
            #:*script-tag-hack*
            #:*output-literal-unicode*))
 
@@ -70,6 +71,9 @@ gethash."
   Controls how js objects should be decoded. :jso means decode to internal struct which
   can be processed by getjso, mapjso etc. :hashtable means decode as hash tables.")
 
+(defparameter *allow-comments* nil
+  "Non-nil means ignore comments when parsing.")
+
 (define-condition json-error (simple-error) ())
 (define-condition json-parse-error (json-error) ())
 (define-condition json-eof-error (json-parse-error) ())
@@ -86,10 +90,26 @@ gethash."
 (defun ends-atom (char)
   (or (is-whitespace char) (member char '(#\) #\] #\} #\, #\:))))
 
+(defun skip-cpp-comment (stream)
+  (declare #.*optimize*)
+  ;; Skip the first slash.
+  (read-char stream)
+  (unless (char= #\/ (peek-char nil stream nil))
+    (raise 'json-parse-error "Unexpected input '/~A'." (read-char stream)))
+  ;; Skip the second slash.
+  (read-char stream)
+  (loop :while (not (member (peek-char nil stream nil)
+                            '(#\newline #\return)))
+        :do (read-char stream))
+  (skip-whitespace stream))
+
 (defun skip-whitespace (stream)
   (declare #.*optimize*)
-  (loop :while (is-whitespace (peek-char nil stream nil))
-        :do (read-char stream)))
+  (loop :for char := (peek-char nil stream nil)
+        :while (cond
+                 ((is-whitespace char) (read-char stream))
+                 ((and *allow-comments* (char= #\/ char))
+                  (skip-cpp-comment stream)))))
 
 (defun at-eof (stream)
   (eql (peek-char nil stream nil :eof) :eof))

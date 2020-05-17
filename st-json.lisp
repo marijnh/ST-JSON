@@ -254,7 +254,7 @@ Raises a json-type-error when the type is wrong."
            (make-jso :alist (nreverse accum))
            (nreverse accum))))
      (:hashtable
-      (let ((accum (make-hash-table)))
+      (let ((accum (make-hash-table :test #'equal)))
         (gather-comma-separated
          stream #\} "object literal"
          (lambda ()

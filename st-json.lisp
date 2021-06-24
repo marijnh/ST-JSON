@@ -387,7 +387,7 @@ Raises a json-type-error when the type is wrong."
   (write element :stream stream))
 
 (defmethod write-json-element ((element real) stream)
-  (format stream "~,,,,,,'eE" element))
+  (format stream "~,,,0,,,'eE" element))
 
 (defmethod write-json-element ((element hash-table) stream)
   (declare #.*optimize*)

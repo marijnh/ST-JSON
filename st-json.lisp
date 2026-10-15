@@ -367,7 +367,7 @@ Raises a json-type-error when the type is wrong."
                                          ((and (< #x9F code #x10000)
                                                (not *output-literal-unicode*))
                                           (format stream "\\u~4,'0x" code))
-                                         ((and (< #x10000 code #x1FFFF)
+                                         ((and (< #x10000 code #x10FFFF)
                                                (not *output-literal-unicode*))
                                           (let ((c (- code #x10000)))
                                             (format stream "\\u~4,'0x\\u~4,'0x"
